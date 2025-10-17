@@ -1,0 +1,126 @@
+import org.junit.jupiter.api.Test;
+
+import java.security.cert.PolicyNode;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+public class TestPart5 {
+    @Test
+    void testTraversable() {
+        DoorPolicy<String, String> policy = new DoorPolicy<>();
+        Vertex<String, String> A = new DungeonVertex<>("A");
+        Vertex<String, String> B = new DungeonVertex<>("B");
+        Edge<String, String> edge = new DungeonEdge<>(A, B, 5, "Door#key1");
+
+        Inventory inv = new Inventory();
+        inv.add("Key1");
+        assertFalse(policy.traversable(edge, inv), "Should not traverse without key1 (case-sensitivity)");
+
+        inv.add("key1");
+        assertTrue(policy.traversable(edge, inv), "Should traverse when key1 is in inventory");
+
+        Inventory wrongInv = new Inventory();
+        wrongInv.add("key2");
+        assertFalse(policy.traversable(edge, wrongInv), "Should not traverse with wrong key");
+    }
+
+    @Test
+    void testIsValidWithDoorPolicy() {
+        DungeonGraph<String, String> graph = new DungeonGraph<>();
+        Vertex<String, String> A = graph.addVertex("A");
+        Vertex<String, String> B = graph.addVertex("B");
+        Vertex<String, String> C = graph.addVertex("C");
+        Edge<String, String> e1 = graph.addEdge(A, B, 5, "Door#key1");
+        Edge<String, String> e2 = graph.addEdge(B, C, 3, "Normal");
+        List<Vertex<String, String>> vertices = new ArrayList<>();
+        vertices.add(A);
+        vertices.add(B);
+        vertices.add(C);
+        Path<String, String> path = new Path<>(vertices, graph);
+        DoorPolicy<String, String> policy = new DoorPolicy<>();
+        Inventory inv1 = new Inventory();
+        Inventory inv2 = new Inventory();
+        inv2.add("key1");
+
+        assertFalse(path.isValid(policy, inv1), "Path should be invalid without key1");
+
+        assertTrue(path.isValid(policy, inv2), "Path should be valid with key1 in inventory");
+
+        List<Vertex<String, String>> openVertices = new ArrayList<>();
+        openVertices.add(B);
+        openVertices.add(C);
+        Path<String, String> openPath = new Path<>(openVertices, graph);
+        assertTrue(openPath.isValid(policy, inv1), "Normal corridor should always be valid");
+    }
+
+    @Test
+    void testCostWithDoorPolicy() {
+        DungeonGraph<String, String> graph = new DungeonGraph<>();
+        Vertex<String, String> A = graph.addVertex("A");
+        Vertex<String, String> B = graph.addVertex("B");
+        Vertex<String, String> C = graph.addVertex("C");
+        Edge<String, String> e1 = graph.addEdge(A, B, 4, "Door#key1");
+        Edge<String, String> e2 = graph.addEdge(B, C, 6, "Normal");
+        List<Vertex<String, String>> vertices = new ArrayList<>();
+        vertices.add(A);
+        vertices.add(B);
+        vertices.add(C);
+        Path<String, String> path = new Path<>(vertices, graph);
+        DoorPolicy<String, String> policy = new DoorPolicy<>();
+        Inventory inv1 = new Inventory();
+        Inventory inv2 = new Inventory(); inv2.add("key1");
+
+        assertEquals(-1, path.cost(policy, inv1), "Invalid path without key should return -1");
+
+        assertEquals(10, path.cost(policy, inv2), "Valid path with key1 should cost 10");
+    }
+
+    @Test
+    void testComputePathWithDoorPolicy(){
+        DungeonGraph<String, Door> graph = new DungeonGraph<>();
+        Vertex<String, Door> A = graph.addVertex("A");
+        Vertex<String, Door> B = graph.addVertex("B");
+        Vertex<String, Door> C = graph.addVertex("C");
+        Vertex<String, Door> D = graph.addVertex("D");
+        Vertex<String, Door> E = graph.addVertex("E");
+        Vertex<String, Door> F = graph.addVertex("F");
+        Vertex<String, Door> G = graph.addVertex("G");
+        graph.addEdge(A, B, 1, new Door("key1"));
+        graph.addEdge(B, C, 2, new Door("key2"));
+        graph.addEdge(C, D, 3, new Door("key3"));
+        graph.addEdge(D, E, 4, new Door("key4"));
+        graph.addEdge(E, F, 5, new Door("key5"));
+        graph.addEdge(F, D, 6, new Door("key6"));
+        TraversalPolicy<String, Door> policy = new DoorPolicy<>();
+        Inventory inv = new Inventory();
+        Optional<Path<String, Door>> path1 = Path.computePath(graph, A, F, policy, inv);
+        assertTrue(path1.isEmpty(), "Cannot travel with empty inv");
+
+        inv.add("key1");
+        Optional<Path<String, Door>> path2 = Path.computePath(graph, A, B, policy, inv);
+        assertTrue(path2.isPresent(), "Can travel with appropriate key");
+        assertEquals(List.of(A, B), path2.get().vertices, "Travel with correct vertices using BFS");
+        assertEquals(1, path2.get().cost(), "Travel with the correct cost using BFS");
+
+        Optional<Path<String, Door>> path3 = Path.computePath(graph, A, G, policy, inv);
+        assertTrue(path3.isEmpty(), "Cannot travel to isolated vertex");
+
+        inv.add("key2");
+        inv.add("key3");
+        inv.add("key4");
+        inv.add("key5");
+        Optional<Path<String, Door>> path4 = Path.computePath(graph, A, F, policy, inv);
+        assertTrue(path4.isPresent(), "Having no key6 so skip edge D-F");
+        assertEquals(List.of(A, B, C, D, E, F), path4.get().vertices, "Travel with correct vertices using BFS");
+        assertEquals(15, path4.get().cost(), "Travel with the correct cost using BFS");
+
+        inv.add("key6");
+        Optional<Path<String, Door>> path5 = Path.computePath(graph, A, F, policy, inv);
+        assertTrue(path5.isPresent(), "Having key6 so use shortcut D-F");
+        assertEquals(List.of(A, B, C, D, F), path5.get().vertices, "Travel with correct vertices using BFS");
+        assertEquals(12, path5.get().cost(), "Travel with the correct cost using BFS");
+    }
+}
